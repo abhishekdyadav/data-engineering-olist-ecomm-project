@@ -19,91 +19,13 @@ The project follows **Medallion Architecture** (Bronze → Silver → Gold) and 
 
 ## 🏗️ Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         SOURCE SYSTEMS                                       │
-│                                                                               │
-│   ┌──────────────┐    ┌──────────────┐    ┌──────────────┐                  │
-│   │  GitHub Repo  │    │  MySQL DB    │    │  MongoDB DB  │                  │
-│   │  (7 CSV files)│    │ (filess.io)  │    │ (filess.io)  │                  │
-│   │  HTTP Source  │    │  Live DB     │    │  NoSQL Store │                  │
-│   └──────┬───────┘    └──────┬───────┘    └──────┬───────┘                  │
-└──────────┼────────────────────┼────────────────────┼──────────────────────────┘
-           │                    │                    │
-           └────────────────────┴────────────────────┘
-                                │
-                                ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│               ORCHESTRATION — Azure Data Factory                             │
-│                                                                               │
-│   Lookup Activity ──► ForEach (Dynamic) ──► Copy Activity (HTTP → ADLS)    │
-│        │                    │                                                 │
-│        │              CopyInsideForEach                                       │
-│        │              @item().csv_relative_url                                │
-│        │              @item().file_name                                       │
-│        │                                                                      │
-│        └──────────────────► Copy Activity (MySQL → ADLS)                    │
-│                                                                               │
-│   Error Handling: Web Activity alerts on every failure path                  │
-│   Trigger: Daily Schedule Trigger                                             │
-└─────────────────────────────┬───────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    🥉 BRONZE LAYER — ADLS Gen2                               │
-│                    Raw ingestion — CSV format                                 │
-│                                                                               │
-│   olistdata/bronze/                                                           │
-│   ├── olist_customers_dataset.csv                                             │
-│   ├── olist_orders_dataset.csv                                                │
-│   ├── olist_order_items_dataset.csv                                           │
-│   ├── olist_products_dataset.csv                                              │
-│   ├── olist_sellers_dataset.csv                                               │
-│   ├── olist_geolocation_dataset.csv                                           │
-│   └── olist_order_reviews_dataset.csv                                         │
-└─────────────────────────────┬───────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│               TRANSFORMATION — Azure Databricks (PySpark)                    │
-│                                                                               │
-│   ► Read all 7 CSVs from Bronze                                              │
-│   ► Join across all tables (customers, orders, items,                        │
-│     products, sellers, geolocation, reviews)                                 │
-│   ► Remove duplicate columns                                                 │
-│   ► Compute delivery metrics (actual vs estimated)                           │
-│   ► Auth via App Registration + OAuth 2.0                                    │
-│   ► Secrets managed via Databricks Secret Scope                              │
-└─────────────────────────────┬───────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    🥈 SILVER LAYER — ADLS Gen2                               │
-│                    Cleaned & joined — Parquet format                          │
-│                                                                               │
-│   olistdata/silver/                                                           │
-│   └── final_df.parquet  (single joined dataset, all 7 tables)                │
-└─────────────────────────────┬───────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│               SERVING — Azure Synapse Analytics (Serverless SQL)             │
-│                                                                               │
-│   ► OPENROWSET reads Silver Parquet directly                                 │
-│   ► Business views created in gold schema                                    │
-│   ► CETAS writes Gold External Table to ADLS                                 │
-│   ► Managed Identity authentication                                          │
-└─────────────────────────────┬───────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    🥇 GOLD LAYER — ADLS Gen2                                 │
-│                    Business-ready — Parquet + Snappy                         │
-│                                                                               │
-│   olistdata/gold/Serving/                                                    │
-│   └── finaltable  (external table, queryable via Synapse SQL)                │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+![Architecture](architecture/pipeline_architecture.png)
+
+The pipeline follows **Medallion Architecture** across three layers:
+
+- **Bronze** — Azure Data Factory ingests raw CSV files from GitHub via a dynamic Lookup + ForEach pipeline, and pulls live data from MySQL. All raw files land in ADLS Gen2 as-is.
+- **Silver** — Azure Databricks reads the raw Bronze files, joins all 7 tables using PySpark, removes duplicate columns, and writes a single clean Parquet file back to ADLS Gen2.
+- **Gold** — Azure Synapse Analytics serverless SQL reads the Silver Parquet via OPENROWSET, applies business logic through views, and persists the final output as an external table in ADLS Gen2 using CETAS.
 
 ---
 
@@ -371,8 +293,8 @@ databricks secrets put --scope adls-scope --key directory-id
 
 ## 📝 Author
 
-**Abhishek**
+**Abhishek Yadav** :
 Data Engineer | Azure | PySpark | SQL | Python
 
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-0077B5?style=flat&logo=linkedin)](https://linkedin.com/in/yourprofile)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-0077B5?style=flat&logo=linkedin)](https://www.linkedin.com/in/abhishekdyadav/)
 [![GitHub](https://img.shields.io/badge/GitHub-Follow-181717?style=flat&logo=github)](https://github.com/yourusername)
